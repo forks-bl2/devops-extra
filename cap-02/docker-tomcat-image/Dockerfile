@@ -10,4 +10,7 @@ ADD sample.war /usr/local/tomcat/webapps/
 ADD devopsnapratica.war /usr/local/tomcat/webapps/
 
 EXPOSE 8080
-CMD ["/usr/local/tomcat/bin/catalina.sh", "run"]
+
+RUN chmod a+x /usr/local/tomcat/bin/catalina.sh
+
+CMD ["catalina.sh", "run"]
