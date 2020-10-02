@@ -1,0 +1,18 @@
+###############################################################################
+# LOJA_VIRTUAL.CFG - OBJECT CONFIG FILE FOR MONITORING LOJA VIRTUAL CONTEINERES
+###############################################################################
+
+# HOST DEFINITION
+define host{
+        use         linux-server
+        host_name   mysql-server
+        alias       mysql-server
+        address     172.17.0.2
+}
+
+define host{
+        use         linux-server
+        host_name   tomcat-server
+        alias       tomcat-server
+        address     172.17.0.3
+}
