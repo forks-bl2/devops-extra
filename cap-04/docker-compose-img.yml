@@ -1,0 +1,35 @@
+########################################################################
+# Este arquivo docker-compose faz uso das imagens personalizadas
+# armazenadas no Hub Docker de aurimrv. Desse modo, não foi necessário
+# fazer uso dos arquivos Dockerfile individuais de cada contêiner e
+# a cláusula build foi omitida.
+# Para inicializar os contêiners utilizando este aquivo, estando no 
+# diretório no qual este arquivo se localiza, basta executar:
+#
+# docker-compose -f docker-compose-img.yml up
+#
+########################################################################
+
+version: "3.3"
+services:
+  db:
+    image: aurimrv/mysql-server-img
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data:/var/lib/mysql
+
+  web:
+    image: aurimrv/tomcat-server-img
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+  monitor:
+    image: aurimrv/nagios-server-img
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+      - db
