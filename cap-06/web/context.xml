@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Context>
+  <WatchedResource>WEB-INF/web.xml</WatchedResource>
+
+ 	<Resource name="jdbc/web" auth="Container"
+		type="javax.sql.DataSource" maxActive="100" maxIdle="30"
+		maxWait="10000" username="loja" password="lojasecret"
+		driverClassName="com.mysql.jdbc.Driver"
+		url="jdbc:mysql://db:3306/loja_schema"/>
+
+	<Resource name="jdbc/secure" auth="Container"
+		type="javax.sql.DataSource" maxActive="100" maxIdle="30"
+		maxWait="10000" username="loja" password="lojasecret"
+		driverClassName="com.mysql.jdbc.Driver"
+		url="jdbc:mysql://db:3306/loja_schema"/>
+
+	<Resource name="jdbc/storage" auth="Container"
+		type="javax.sql.DataSource" maxActive="100" maxIdle="30"
+		maxWait="10000" username="loja" password="lojasecret"
+		driverClassName="com.mysql.jdbc.Driver"
+		url="jdbc:mysql://db:3306/loja_schema"/>
+</Context>
