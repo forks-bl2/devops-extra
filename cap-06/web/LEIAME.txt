@@ -1,0 +1,5 @@
+Tomcat server contruido via GitLab pipeline
+
+Veja arquivos localizados em docker-img/web
+
+	Os arquivos do servidor web foram carregados para serem personalizados pelo pipeline CI/CD do GitLab.
