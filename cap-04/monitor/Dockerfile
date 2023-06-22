@@ -11,4 +11,8 @@ ADD contacts.cfg /opt/nagios/etc/objects/
 
 ADD nagios.cfg /opt/nagios/etc/
 
+# To solve CRITICAL error on ping command
+# https://checkmk.com/linux-knowledge/nagios-check-ping-could-not-interpret-output-ping-command
+ENV LANG=""
+
 EXPOSE 80
