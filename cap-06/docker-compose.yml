@@ -20,9 +20,9 @@ services:
       - ./data:/var/lib/mysql
 
   web:
-    image: aurimrv/tomcat-server-img
+    image: registry-local:5005/loja-virtual
     ports:
-      - "8080:8080"
+      - "8089:8080"
     depends_on:
       - db
 
