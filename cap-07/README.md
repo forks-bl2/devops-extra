@@ -673,7 +673,7 @@ build:
     # Imagem gerada pelo Dockerfile (docker-img/web/Dockerfile)
     - image: registry-local:5005/loja-virtual-base
       context: ./docker-img/web
-	# imagem gerada pelo jib  
+    # imagem gerada pelo jib  
     - image: registry-local:5005/loja-virtual
       requires:
         - image: registry-local:5005/loja-virtual-base
@@ -681,7 +681,7 @@ build:
         project: combined
         fromImage: "registry-local:5005/loja-virtual-base"
   local:
-	# Não utiliza o cliente do docker, e sim a API do Docker Engine
+  # Não utiliza o cliente do docker, e sim a API do Docker Engine
     useDockerCLI: false
     # Usa o Buildkit (https://docs.docker.com/develop/develop-images/build_enhancements/)
     useBuildkit: false
