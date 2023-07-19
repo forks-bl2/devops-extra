@@ -1,5 +1,38 @@
 # Capítulo 7
 
+
+1. [Capítulo 7](#capítulo-7)
+   1. [Configuração do Ambiente](#configuração-do-ambiente)
+      1. [Instalação k0s](#instalação-k0s)
+      2. [Instalação do kubectl](#instalação-do-kubectl)
+      3. [Criação de usuário no cluster para acesso pelo kubectl](#criação-de-usuário-no-cluster-para-acesso-pelo-kubectl)
+      4. [Criação do Registry do Docker](#criação-do-registry-do-docker)
+      5. [Instalação do Skaffold](#instalação-do-skaffold)
+      6. [Instalação do Helm](#instalação-do-helm)
+      7. [Instalação do Terraform:](#instalação-do-terraform)
+   2. [Kubernetes](#kubernetes)
+      1. [Criação do primeiro deployment](#criação-do-primeiro-deployment)
+      2. [Criação do primeiro service](#criação-do-primeiro-service)
+      3. [Criação do primeiro ingress](#criação-do-primeiro-ingress)
+      4. [Implantação do NGINX Ingress](#implantação-do-nginx-ingress)
+   3. [Helm Básico](#helm-básico)
+      1. [Criar novo chart](#criar-novo-chart)
+      2. [Implantar chart](#implantar-chart)
+      3. [Obter informações da release](#obter-informações-da-release)
+      4. [Desinstalar](#desinstalar)
+   4. [Jib](#jib)
+      1. [Configurando na aplicação](#configurando-na-aplicação)
+      2. [Gerar imagem base](#gerar-imagem-base)
+      3. [Gerar imagem da aplicação](#gerar-imagem-da-aplicação)
+   5. [Helm na aplicação](#helm-na-aplicação)
+      1. [Criando o Helm da aplicação](#criando-o-helm-da-aplicação)
+      2. [Implantando e atualizando a aplicação](#implantando-e-atualizando-a-aplicação)
+      3. [Analisando a implantação](#analisando-a-implantação)
+      4. [Implantando o banco de dados](#implantando-o-banco-de-dados)
+   6. [Skaffold](#skaffold)
+      1. [Configurando a implantação com o Skaffold](#configurando-a-implantação-com-o-skaffold)
+
+
 ## Configuração do Ambiente
 
 ### Instalação k0s
@@ -39,12 +72,12 @@ sudo apt-get install -y apt-transport-https ca-certificates curl
 
 Baixar chave GPG:
 ```
-sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-archive-keyring.gpg
 ```
 
 Acrescentar repositório do kubectl:
 ```
-echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
 ```
 
 Instalar kubectl
@@ -62,7 +95,7 @@ sudo k0s kubeconfig create --groups "system:masters" NOME_USUARIO > k0s.config
 
 Criar usuário no cluster com papel de admin:
 ```
-sudo k0s kubectl create clusterrolebinding NOME_USUARIO-binding --clusterrole=admin --user=NOME_USUARIO > k0s.config
+sudo k0s kubectl create clusterrolebinding NOME_USUARIO-binding --clusterrole=admin --user=NOME_USUARIO
 ```
 
 Mover arquivo para localização padrão:
@@ -90,7 +123,7 @@ docker run -d -p 5005:5000 --restart=always --name registry registry:2
 
 Abrir no editor de texto o arquivo /etc/hosts:
 ```
-nano /etc/hosts
+sudo nano /etc/hosts
 ```
 
 Adicionar registry-local na linha do localhost (127.0.1.1):
@@ -107,19 +140,22 @@ sudo containerd config default > containerd.toml
 
 Alterar o arquivo para que fique assim:
 ```
-root = "/var/lib/k0s/containerd" state = "/var/lib/k0s/run/containerd"
+root = "/var/lib/k0s/containerd"
+state = "/var/lib/k0s/run/containerd"
 ...
 address = "/var/lib/k0s/run/containerd.sock"
 ```
 
-Acrecentar o trecho abaixo logo após `endpoint = ["https://registry-1.docker.io"]`:
-
+Acrecentar o trecho abaixo logo após `[plugins."io.containerd.grpc.v1.cri".registry.configs]`:
 ```
-[plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry-local:5005"]
-          endpoint = ["http://registry-local:5005"]
-        [plugins."io.containerd.grpc.v1.cri".registry.configs]
-          [plugins."io.containerd.grpc.v1.cri".registry.configs."registry-local:5005".tls]
+        [plugins."io.containerd.grpc.v1.cri".registry.configs."registry-local:5005".tls]
             insecure_skip_verify = true
+```
+
+E o trecho abaixo após `[plugins."io.containerd.grpc.v1.cri".registry.mirrors]`:
+```
+          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry-local:5005"]
+          endpoint = ["http://registry-local:5005"]
 ```
 
 Mover arquivo para diretório de configuração do k0s
@@ -159,7 +195,7 @@ skaffold config set --global insecure-registries registry-local:5005
 ```
 Verificar configurações:
 ```
-skaffold config list
+skaffold config list -a
 ```
 
 ### Instalação do Helm
@@ -277,9 +313,9 @@ Acessar no navegador:
 http://meuservico.ufscar.br/app-a
 ```
 
+## Helm Básico
 
-
-## Helm
+### Criar novo chart
 
 Criar chart:
 
@@ -287,16 +323,22 @@ Criar chart:
 helm create chart
 ```
 
+### Implantar chart
+
 Implantar o chart:
 
 ```
 helm install minha-aplicacao chart
 ```
 
+### Obter informações da release
+
 Obter informações:
 ```
 helm get all minha-aplicacao   
 ```
+
+### Desinstalar
 
 Desinstalar:
 
@@ -306,7 +348,9 @@ helm uninstall minha-aplicacao
 
 ## Jib
 
-Adicionar na seção properties:
+### Configurando na aplicação
+
+Adicionar na seção properties do arquivo `pom.xml` na raíz do projeto:
 
 ```xml
 <jib.maven-plugin-version>3.1.4</jib.maven-plugin-version>
@@ -340,13 +384,25 @@ Adicionar na seção plugins:
 </plugin>
 ```
 
+Alterar o arquivo ./site/pom.xml e acrescentar a dependência a seguir:
+
+```xml
+<dependency>
+	<groupId>javax.annotation</groupId>
+	<artifactId>javax.annotation-api</artifactId>
+	<version>1.3.2</version>
+</dependency>
+```
+
+### Gerar imagem base
+
 Alterar o Dockerfile do Tomcat e comentar o trecho a seguir:
 
 ```dockerfile
 ADD devopsnapratica.war /usr/local/tomcat/webapps/
 ```
 
-Gerar a imagem com o comando:
+Gerar a imagem base com o comando:
 
 ```
 docker build -t registry-local:5005/loja-virtual-base .
@@ -359,14 +415,305 @@ Publicar a imagem no registry local (registry-local:5005):
 docker push registry-local:5005/loja-virtual-base
 ```
 
-Gerar imagem com o comando:
+### Gerar imagem da aplicação
+
+Gerar imagem da aplicação com um dos comandos a seguir:
 
 ```
-mvn compile package com.google.cloud.tools:jib-maven-plugin:3.2.1:build 
+mvn compile package com.google.cloud.tools:jib-maven-plugin:3.2.1:build
+```
+
+```
+docker run --network host -v "$(pwd)":/app -w /app -v ~/.m2:/var/maven/.m2 -v ~/.config/:/var/maven/.config -v ~/.cache:/var/maven/.cache -ti --rm -u 1000 -e MAVEN_CONFIG=/var/maven/.m2 maven:3.6.3-jdk-8 mvn -Duser.home=/var/maven -Djib.applicationCache=/app clean compile package com.google.cloud.tools:jib-maven-plugin:3.2.1:build -Djava.util.prefs.userRoot=/var/maven/.m2
 ```
 
 Obter a imagem do registry:
 
 ```
 docker pull registry-local:5005/loja-virtual
+```
+
+Podemos testar a imagem no Docker Compose:
+
+```yaml
+########################################################################
+# Este arquivo docker-compose faz uso das imagens personalizadas
+# armazenadas no Hub Docker de aurimrv. Desse modo, não foi necessário
+# fazer uso dos arquivos Dockerfile individuais de cada contêiner e
+# a cláusula build foi omitida.
+# Para inicializar os contêiners utilizando este aquivo, estando no 
+# diretório no qual este arquivo se localiza, basta executar:
+#
+# docker-compose -f docker-compose.yml up
+#
+########################################################################
+
+version: "3.3"
+services:
+  db:
+    image: aurimrv/mysql-server-img
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data:/var/lib/mysql
+
+  web:
+    image: registry-local:5005/registry_gitlab_com_aprendizado-bl2_loja-virtual-devops_loja-virtual:1e5209148666265812f8ca5bac15d490247ef40d
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    depends_on:
+      - db
+
+  monitor:
+    image: aurimrv/nagios-server-img
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+      - db
+```
+
+## Helm na aplicação
+
+### Criando o Helm da aplicação
+Criar o chart com o comando:
+
+```
+helm create chart
+```
+
+Alterar o arquivo `chart/values.yaml` para usar a imagem gerada pelo skaffold:
+
+```yaml
+image:
+  repository: registry-local:5005/loja-virtual
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+```
+
+Alterar arquivo `chart/templates/deployment.yaml` para corrigir probes e mantê-los comentados por enquanto:
+
+```yaml
+#  livenessProbe:
+#    httpGet:
+#      path: /devopsnapratica
+#      port: http
+#    initialDelaySeconds: 60
+#    periodSeconds: 15
+#  readinessProbe:
+#    httpGet:
+#      path: /devopsnapratica
+#      port: http
+#    initialDelaySeconds: 10
+#    periodSeconds: 5      
+#
+```
+
+### Implantando e atualizando a aplicação
+Implantar a aplicação com o Helm:
+
+```
+helm install loja-virtual chart
+```
+
+Sempre que houver alterações usar o comando de upgrade:
+
+```
+helm upgrade loja-virtual chart
+```
+
+### Analisando a implantação
+
+Analisar situação do deployment:
+
+```
+kubectl describe deployments/loja-virtual-chart
+```
+
+E do pod:
+```
+kubectl describe pods/loja-virtual-chart-NUMERO_POD
+```
+
+Ver logs do pod:
+```
+kubectl logs pods/loja-virtual-chart-NUMERO_POD
+```
+
+### Implantando o banco de dados
+
+Não é possível conectar com o banco de dados. Precisamos definir o deployment do banco de dados (chart/templates/db-deployment.yaml):
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loja-virtual-db
+  labels:
+    app.kubernetes.io/instance: loja-virtual
+    app.kubernetes.io/name: db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: loja-virtual
+      app.kubernetes.io/name: db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: loja-virtual
+        app.kubernetes.io/name: db
+    spec:
+      serviceAccountName: {{ include "chart.serviceAccountName" . }}
+      containers:
+        - name: mysql
+          image: "{{ .Values.db.image.repository }}:{{ .Values.db.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.db.image.pullPolicy }}
+          ports:
+            - name: mysql
+              containerPort: {{ .Values.db.service.port }}
+              protocol: TCP
+          livenessProbe:
+            exec:
+              command:
+              - "bash" 
+              - "-c"
+              - "mysql --user=${MYSQL_USER} --password=${MYSQL_PASSWORD} --execute=\"SHOW DATABASES;\""
+          readinessProbe:
+            exec:
+              command:
+              - "bash" 
+              - "-c"
+              - "mysql --user=${MYSQL_USER} --password=${MYSQL_PASSWORD} --execute=\"SHOW DATABASES;\""
+          resources:
+            {{- toYaml .Values.db.resources | nindent 12 }}
+      {{- with .Values.db.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.db.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.db.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+
+```
+
+E definir um *service* (chart/templates/db-service.yaml), o qual será utilizado pelo *pod* da aplicação da loja para se conectar ao banco de dados:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.db.service.type }}
+  ports:
+    - port: {{ .Values.db.service.port }}
+      targetPort: mysql
+      protocol: TCP
+      name: mysql
+      
+  selector:
+    app.kubernetes.io/instance: loja-virtual
+    app.kubernetes.io/name: db
+
+```
+Também é necessário definir os valores utilizados no arquivo `chart/values.yaml`:
+
+```yaml
+db:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  resources: {}
+  service:
+    type: ClusterIP
+    port: 3306
+  image:
+    repository: aurimrv/mysql-server-img
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+```
+
+Descomentar os probes e atualizar a release:
+
+```
+helm upgrade loja-virtual
+```
+
+## Skaffold
+
+### Configurando a implantação com o Skaffold
+
+Precisamos agora definir o arquivo `skaffold.yaml` na raíz do projeto:
+
+```yaml
+#Versão da API e tipo
+apiVersion: skaffold/v3
+kind: Config
+#Configuração da geração de imagens
+build:
+  # Usar o SHA do commit como tag da imagem
+  tagPolicy:
+    gitCommit:
+      variant: CommitSha
+      # ignoreChanges: true
+  #Imagens geradas
+  artifacts:
+    # Imagem gerada pelo Dockerfile (docker-img/web/Dockerfile)
+    - image: registry-local:5005/loja-virtual-base
+      context: ./docker-img/web
+	# imagem gerada pelo jib  
+    - image: registry-local:5005/loja-virtual
+      requires:
+        - image: registry-local:5005/loja-virtual-base
+      jib:
+        project: combined
+        fromImage: "registry-local:5005/loja-virtual-base"
+  local:
+	# Não utiliza o cliente do docker, e sim a API do Docker Engine
+    useDockerCLI: false
+    # Usa o Buildkit (https://docs.docker.com/develop/develop-images/build_enhancements/)
+    useBuildkit: false
+
+deploy:
+  # Tempo de espera para a realização do deploy
+  statusCheckDeadlineSeconds: 2400
+  # Configuração do Helm para implantação
+  helm:
+    # Configuração das Releases
+    releases:
+      # Release local para desenvolvimento
+      - name: loja-virtual
+        # Localização do chart do Helm
+        chartPath: chart
+        # Arquivos de valores utilizados
+        valuesFiles: [chart/values.yaml]
+        # Passa o nome da imagem como parâmetro para o Helm
+        # Substitui os valores image.repository e image.tag no chart com o valor da imagem gerada no artifact (nome sanitizado).
+        # Ver https://skaffold.dev/docs/deployers/helm/#sanitizing-the-artifact-name-from-invalid-go-template-characters
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_registry_local_5005_loja_virtual}}"
+          image.tag: "{{.IMAGE_TAG_registry_local_5005_loja_virtual}}"
+
+        # Cria o namespace caso não exista
+        createNamespace: true
+    # Flags passadas para o helm
+    flags:
+      # No upgrade, tem timeout de 35 minutos
+      upgrade: ["--timeout", "35m0s"]
+      # Na instalação, tem timeout de 35 minutos
+      install: ["--timeout", "35m0s"]
+  # Contexto do kubernetes utilizado
+  kubeContext: k0s
 ```
