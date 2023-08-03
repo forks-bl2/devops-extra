@@ -2,35 +2,31 @@
 
 
 1. [Capítulo 7](#capítulo-7)
-   1. [Configuração do Ambiente](#configuração-do-ambiente)
-      1. [Instalação k0s](#instalação-k0s)
-      2. [Instalação do kubectl](#instalação-do-kubectl)
-      3. [Criação de usuário no cluster para acesso pelo kubectl](#criação-de-usuário-no-cluster-para-acesso-pelo-kubectl)
-      4. [Criação do Registry do Docker](#criação-do-registry-do-docker)
-      5. [Instalação do Skaffold](#instalação-do-skaffold)
-      6. [Instalação do Helm](#instalação-do-helm)
-      7. [Instalação do Terraform:](#instalação-do-terraform)
-   2. [Kubernetes](#kubernetes)
-      1. [Criação do primeiro deployment](#criação-do-primeiro-deployment)
-      2. [Criação do primeiro service](#criação-do-primeiro-service)
-      3. [Criação do primeiro ingress](#criação-do-primeiro-ingress)
-      4. [Implantação do NGINX Ingress](#implantação-do-nginx-ingress)
-   3. [Helm Básico](#helm-básico)
-      1. [Criar novo chart](#criar-novo-chart)
-      2. [Implantar chart](#implantar-chart)
-      3. [Obter informações da release](#obter-informações-da-release)
-      4. [Desinstalar](#desinstalar)
-   4. [Jib](#jib)
-      1. [Configurando na aplicação](#configurando-na-aplicação)
-      2. [Gerar imagem base](#gerar-imagem-base)
-      3. [Gerar imagem da aplicação](#gerar-imagem-da-aplicação)
-   5. [Helm na aplicação](#helm-na-aplicação)
-      1. [Criando o Helm da aplicação](#criando-o-helm-da-aplicação)
-      2. [Implantando e atualizando a aplicação](#implantando-e-atualizando-a-aplicação)
-      3. [Analisando a implantação](#analisando-a-implantação)
-      4. [Implantando o banco de dados](#implantando-o-banco-de-dados)
-   6. [Skaffold](#skaffold)
-      1. [Configurando a implantação com o Skaffold](#configurando-a-implantação-com-o-skaffold)
+	1. [Configuração do Ambiente](#configuração-do-ambiente)
+		1. [Instalação k0s](#instalação-k0s)
+		2. [Instalação do kubectl](#instalação-do-kubectl)
+		3. [Criação de usuário no cluster para acesso pelo kubectl](#criação-de-usuário-no-cluster-para-acesso-pelo-kubectl)
+		4. [Criação do Registry do Docker](#criação-do-registry-do-docker)
+		5. [Instalação do Skaffold](#instalação-do-skaffold)
+		6. [Instalação do Helm](#instalação-do-helm)
+		7. [Instalação do Terraform:](#instalação-do-terraform)
+	2. [Kubernetes](#kubernetes)
+		1. [Criação do primeiro deployment](#criação-do-primeiro-deployment)
+		2. [Criação do primeiro service](#criação-do-primeiro-service)
+		3. [Criação do primeiro ingress](#criação-do-primeiro-ingress)
+		4. [Implantação do NGINX Ingress](#implantação-do-nginx-ingress)
+	3. [Helm](#helm)
+	4. [Jib](#jib)
+		1. [Gerar imagem base](#gerar-imagem-base)
+		2. [Gerar imagem da aplicação](#gerar-imagem-da-aplicação)
+	5. [Helm na aplicação](#helm-na-aplicação)
+		1. [Criando o Helm da aplicação](#criando-o-helm-da-aplicação)
+		2. [Implantando e atualizando a aplicação](#implantando-e-atualizando-a-aplicação)
+		3. [Analisando a implantação](#analisando-a-implantação)
+		4. [Implantando o banco de dados](#implantando-o-banco-de-dados)
+	6. [Skaffold](#skaffold)
+		1. [Configurando a implantação com o Skaffold](#configurando-a-implantação-com-o-skaffold)
+	7. [Terraform](#terraform)
 
 
 ## Configuração do Ambiente
@@ -98,6 +94,11 @@ Criar usuário no cluster com papel de admin:
 sudo k0s kubectl create clusterrolebinding NOME_USUARIO-binding --clusterrole=admin --user=NOME_USUARIO
 ```
 
+Criar o diretório $HOME/.kube caso não exista
+```
+mkdir -p $HOME/.kube
+```
+
 Mover arquivo para localização padrão:
 
 ```
@@ -154,8 +155,11 @@ Acrecentar o trecho abaixo logo após `[plugins."io.containerd.grpc.v1.cri".regi
 
 E o trecho abaixo após `[plugins."io.containerd.grpc.v1.cri".registry.mirrors]`:
 ```
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry-local:5005"]
+[plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry-local:5005"]
           endpoint = ["http://registry-local:5005"]
+        [plugins."io.containerd.grpc.v1.cri".registry.configs]
+          [plugins."io.containerd.grpc.v1.cri".registry.configs."registry-local:5005".tls]
+            insecure_skip_verify = true
 ```
 
 Mover arquivo para diretório de configuração do k0s
@@ -298,59 +302,66 @@ Instalar o ingress NGINX
 helm install ingress-nginx ingress-nginx/ingress-nginx 
 ```
 
-Obter portas do nó:
+Obter portas do nó nas quais o ingress está rodando:
 ```
 kubectl describe service/ingress-nginx-controller   | grep NodePort
 ```
+
+A saída será semelhante a essa:
+
+```
+NodePort:                 http  30217/TCP
+NodePort:                 https  31757/TCP
+```
+
+O valor da porta http (primeira linha) será utilizado na sequencia.
 
 Editar /etc/localhost
 ```
 127.0.1.1 nome-da-maquina registry-local meuservico.ufscar.br
 ```
 
-Acessar no navegador:
+Acessar no navegador (trocando o `NUMERO_PORTA_HTTP` pelo valor obtido com o comando `kubectl describe`):
 ```
-http://meuservico.ufscar.br/app-a
+http://meuservico.ufscar.br:NUMERO_PORTA_HTTP/app-a
 ```
 
-## Helm Básico
+![Tela do NGINX](arquivos/imagens/tela-nginx.png)
 
-### Criar novo chart
+## Helm
 
-Criar chart:
+Criar um novo chart de exemplo:
 
 ```
 helm create chart
 ```
 
-### Implantar chart
-
-Implantar o chart:
+Implantar o chart no cluster Kubernetes:
 
 ```
 helm install minha-aplicacao chart
 ```
 
-### Obter informações da release
-
-Obter informações:
+Obter informações sobre a release `minha-aplicacao`:
 ```
 helm get all minha-aplicacao   
 ```
 
-### Desinstalar
-
-Desinstalar:
+Desinstalar a release:
 
 ```
 helm uninstall minha-aplicacao
 ```
 
+ou 
+
+```
+helm delete minha-aplicacao
+```
+
 ## Jib
 
-### Configurando na aplicação
-
-Adicionar na seção properties do arquivo `pom.xml` na raíz do projeto:
+Adicionar na seção properties:
 
 ```xml
 <jib.maven-plugin-version>3.1.4</jib.maven-plugin-version>
@@ -717,3 +728,69 @@ deploy:
   # Contexto do kubernetes utilizado
   kubeContext: k0s
 ```
+
+## Terraform
+
+mkdir ~/kubernetes/terraform
+
+Criar arquivo main.tf:
+
+```
+# Summary: Criar e gerenciar arquivo local.
+
+# Documentation: https://www.terraform.io/docs/language/settings/index.html
+terraform {
+  required_version = ">= 1.0.0"
+}
+
+# Documentation: https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file
+resource "local_file" "local_file_hello" {
+  content  = "Hello terraform local!"
+  filename = "${path.module}/local_file_hello_${terraform.workspace}.txt"
+}
+
+```
+
+Iniciar o terraform:
+
+```
+terraform init
+```
+
+Verificar o plano com o comando a seguir:
+
+```
+terraform plan
+```
+
+Aplicar as alterações:
+
+```
+terraform apply -auto-approve
+```
+
+Verificar novamente o plano:
+```
+terraform plan
+```
+
+Acrescentar no arquivo main.tf:
+
+```terraform
+# Documentation: https://registry.terraform.io/providers/hashicorp/local/latest/docs/data-sources/file
+data "local_file" "changeme_local_file_preexisting_file" {
+  filename = "${path.module}/local_file_hello_${terraform.workspace}.txt"
+}
+
+# Documentation: https://www.terraform.io/docs/language/values/outputs.html
+output "changeme_preexisting_file_content" {
+  value = data.local_file.changeme_local_file_preexisting_file.content
+}
+```
+
+Aplicar as alterações:
+
+```
+terraform apply -auto-approve
+```
+

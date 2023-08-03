@@ -7,13 +7,13 @@ metadata:
     kubernetes.io/ingress.class: nginx
 spec:
   rules:
-  - host: "meuservico.ufscar.br"
-    http:
-      paths:
-      - path: /app-a
-        pathType: Prefix
-        backend:
-          service:
-            name: aplicacao-a
-            port:
-              number: 80
+    - host: "meuservico.ufscar.br"
+      http:
+        paths:
+          - path: /app-a
+            pathType: Prefix
+            backend:
+              service:
+                name: aplicacao-a
+                port:
+                  number: 80
