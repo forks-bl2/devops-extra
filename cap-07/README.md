@@ -2,31 +2,31 @@
 
 
 1. [Capítulo 7](#capítulo-7)
-	1. [Configuração do Ambiente](#configuração-do-ambiente)
-		1. [Instalação k0s](#instalação-k0s)
-		2. [Instalação do kubectl](#instalação-do-kubectl)
-		3. [Criação de usuário no cluster para acesso pelo kubectl](#criação-de-usuário-no-cluster-para-acesso-pelo-kubectl)
-		4. [Criação do Registry do Docker](#criação-do-registry-do-docker)
-		5. [Instalação do Skaffold](#instalação-do-skaffold)
-		6. [Instalação do Helm](#instalação-do-helm)
-		7. [Instalação do Terraform:](#instalação-do-terraform)
-	2. [Kubernetes](#kubernetes)
-		1. [Criação do primeiro deployment](#criação-do-primeiro-deployment)
-		2. [Criação do primeiro service](#criação-do-primeiro-service)
-		3. [Criação do primeiro ingress](#criação-do-primeiro-ingress)
-		4. [Implantação do NGINX Ingress](#implantação-do-nginx-ingress)
-	3. [Helm](#helm)
-	4. [Jib](#jib)
-		1. [Gerar imagem base](#gerar-imagem-base)
-		2. [Gerar imagem da aplicação](#gerar-imagem-da-aplicação)
-	5. [Helm na aplicação](#helm-na-aplicação)
-		1. [Criando o Helm da aplicação](#criando-o-helm-da-aplicação)
-		2. [Implantando e atualizando a aplicação](#implantando-e-atualizando-a-aplicação)
-		3. [Analisando a implantação](#analisando-a-implantação)
-		4. [Implantando o banco de dados](#implantando-o-banco-de-dados)
-	6. [Skaffold](#skaffold)
-		1. [Configurando a implantação com o Skaffold](#configurando-a-implantação-com-o-skaffold)
-	7. [Terraform](#terraform)
+   1. [Configuração do Ambiente](#configuração-do-ambiente)
+      1. [Instalação k0s](#instalação-k0s)
+      2. [Instalação do kubectl](#instalação-do-kubectl)
+      3. [Criação de usuário no cluster para acesso pelo kubectl](#criação-de-usuário-no-cluster-para-acesso-pelo-kubectl)
+      4. [Criação do Registry do Docker](#criação-do-registry-do-docker)
+      5. [Instalação do Skaffold](#instalação-do-skaffold)
+      6. [Instalação do Helm](#instalação-do-helm)
+      7. [Instalação do Terraform:](#instalação-do-terraform)
+   2. [Kubernetes](#kubernetes)
+      1. [Criação do primeiro deployment](#criação-do-primeiro-deployment)
+      2. [Criação do primeiro service](#criação-do-primeiro-service)
+      3. [Criação do primeiro ingress](#criação-do-primeiro-ingress)
+      4. [Implantação do NGINX Ingress](#implantação-do-nginx-ingress)
+   3. [Helm](#helm)
+   4. [Jib](#jib)
+      1. [Gerar imagem base](#gerar-imagem-base)
+      2. [Gerar imagem da aplicação](#gerar-imagem-da-aplicação)
+   5. [Helm na aplicação](#helm-na-aplicação)
+      1. [Criando o Helm da aplicação](#criando-o-helm-da-aplicação)
+      2. [Implantando e atualizando a aplicação](#implantando-e-atualizando-a-aplicação)
+      3. [Analisando a implantação](#analisando-a-implantação)
+      4. [Implantando o banco de dados](#implantando-o-banco-de-dados)
+   6. [Skaffold](#skaffold)
+      1. [Configurando a implantação com o Skaffold](#configurando-a-implantação-com-o-skaffold)
+   7. [Terraform](#terraform)
 
 
 ## Configuração do Ambiente
@@ -469,7 +469,7 @@ services:
       - ./data:/var/lib/mysql
 
   web:
-    image: registry-local:5005/registry_gitlab_com_aprendizado-bl2_loja-virtual-devops_loja-virtual:1e5209148666265812f8ca5bac15d490247ef40d
+    image: registry-local:5005/loja-virtual
     ports:
       - "8080:8080"
       - "8443:8443"
@@ -502,6 +502,14 @@ image:
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
+```
+
+E alterar a porta utilizada pelo pod no mesmo arquivo:
+
+```yaml
+service:
+  type: ClusterIP
+  port: 8080
 ```
 
 Alterar arquivo `chart/templates/deployment.yaml` para corrigir probes e mantê-los comentados por enquanto:
@@ -656,7 +664,28 @@ db:
     tag: "latest"
 ```
 
-Descomentar os probes e atualizar a release:
+Descomentar os probes no deployment.yaml e configurar parâmeotrs deles:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /devopsnapratica
+    port: http
+  timeoutSeconds: 1
+  periodSeconds: 10
+  successThreshold: 1
+  failureThreshold: 10
+readinessProbe:
+  httpGet:
+    path: /devopsnapratica
+    port: http
+  timeoutSeconds: 1
+  periodSeconds: 10
+  successThreshold: 1
+  failureThreshold: 3
+```
+
+Atualizar a release:
 
 ```
 helm upgrade loja-virtual
@@ -684,7 +713,7 @@ build:
     # Imagem gerada pelo Dockerfile (docker-img/web/Dockerfile)
     - image: registry-local:5005/loja-virtual-base
       context: ./docker-img/web
-    # imagem gerada pelo jib  
+    # imagem gerada pelo jib
     - image: registry-local:5005/loja-virtual
       requires:
         - image: registry-local:5005/loja-virtual-base
@@ -692,7 +721,7 @@ build:
         project: combined
         fromImage: "registry-local:5005/loja-virtual-base"
   local:
-  # Não utiliza o cliente do docker, e sim a API do Docker Engine
+    # Não utiliza o cliente do docker, e sim a API do Docker Engine
     useDockerCLI: false
     # Usa o Buildkit (https://docs.docker.com/develop/develop-images/build_enhancements/)
     useBuildkit: false
@@ -716,7 +745,7 @@ deploy:
         setValueTemplates:
           image.repository: "{{.IMAGE_REPO_registry_local_5005_loja_virtual}}"
           image.tag: "{{.IMAGE_TAG_registry_local_5005_loja_virtual}}"
-
+        namespace: loja-virtual
         # Cria o namespace caso não exista
         createNamespace: true
     # Flags passadas para o helm
@@ -727,6 +756,7 @@ deploy:
       install: ["--timeout", "35m0s"]
   # Contexto do kubernetes utilizado
   kubeContext: k0s
+
 ```
 
 ## Terraform
