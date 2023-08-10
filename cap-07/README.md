@@ -26,7 +26,17 @@
       4. [Implantando o banco de dados](#implantando-o-banco-de-dados)
    6. [Skaffold](#skaffold)
       1. [Configurando a implantação com o Skaffold](#configurando-a-implantação-com-o-skaffold)
+      2. [Definindo um profile para gerar imagem no GitLab](#definindo-um-profile-para-gerar-imagem-no-gitlab)
+      3. [Configurando uma pipeline para construção da imagem no GitLab](#configurando-uma-pipeline-para-construção-da-imagem-no-gitlab)
    7. [Terraform](#terraform)
+      1. [Hello world](#hello-world)
+      2. [Aplicar as alterações](#aplicar-as-alterações)
+      3. [Gerando uma saída (output)](#gerando-uma-saída-output)
+      4. [Usando locals, foreach e null\_resource](#usando-locals-foreach-e-null_resource)
+      5. [Criando pipeline para aplicar o Terraform](#criando-pipeline-para-aplicar-o-terraform)
+   8. [OCI](#oci)
+      1. [Realizando a inscrição](#realizando-a-inscrição)
+      2. [Arquitetura de referência](#arquitetura-de-referência)
 
 
 ## Configuração do Ambiente
@@ -759,18 +769,71 @@ deploy:
 
 ```
 
+Para testar a implantação com o skaffold, devemos executar o comando `skaffold dev` no diretório onde está o arquivo skaffold.yaml (raíz):
+
+```shell
+skaffold dev
+```
+
+### Definindo um profile para gerar imagem no GitLab
+
+Devemos configurar agora um profile, para alterar o nome da imagem gerada quando a pipeline for executada no GitLab. Isso é realizado alterando o arquivo `skaffold.yaml`:
+
+```yaml
+profiles:
+  - name: gitlab
+    patches:
+      - op: replace
+        path: /build/artifacts/0/image
+        value: 'registry.gitlab.com/forks-bl2/loja-virtual-devops/loja-virtual-base'
+      - op: replace
+        path: /build/artifacts/1/image
+        value: 'registry.gitlab.com/forks-bl2/loja-virtual-devops/loja-virtual'
+```
+
+### Configurando uma pipeline para construção da imagem no GitLab
+
+
+Configurar a pipeline para construção da imagem:
+
+```yaml
+#### Jobs referentes ao Skaffold
+# Job responsável por gerar a imagem da aplicação que será utilizada no Kubernetes
+skaffold-build:
+  image: maven:3.6.3-openjdk-8-slim
+  stage: build
+  before_script:
+    - apt-get update && apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+    - curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    - echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" |  tee /etc/apt/sources.list.d/docker.list > /dev/null
+    - apt-get update && apt-get install docker-ce docker-ce-cli containerd.io -y
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+    - curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+    - install skaffold /usr/local/bin/
+    - curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  script:
+    - skaffold build -p gitlab --file-output=tags.json --cache-artifacts=true --cache-file="$HOME/.skaffold/cache" --remote-cache-dir="$HOME/.skaffold/repos"
+```
+
+
 ## Terraform
 
-mkdir ~/kubernetes/terraform
+### Hello world
 
-Criar arquivo main.tf:
+Vamos criar um diretório específico para os arquivos do Terraform:
+
+```yaml
+mkdir ~/kubernetes/terraform
+```
+
+Criar arquivo `main.tf`:
 
 ```
 # Summary: Criar e gerenciar arquivo local.
 
 # Documentation: https://www.terraform.io/docs/language/settings/index.html
 terraform {
-  required_version = ">= 1.0.0"
+  required_version = ">= 1.5.0"
 }
 
 # Documentation: https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file
@@ -781,28 +844,32 @@ resource "local_file" "local_file_hello" {
 
 ```
 
+### Aplicar as alterações
+
 Iniciar o terraform:
 
-```
+```shell
 terraform init
 ```
 
 Verificar o plano com o comando a seguir:
 
-```
+```shell
 terraform plan
 ```
 
 Aplicar as alterações:
 
-```
+```shell
 terraform apply -auto-approve
 ```
 
 Verificar novamente o plano:
-```
+```shell
 terraform plan
 ```
+
+### Gerando uma saída (output) 
 
 Acrescentar no arquivo main.tf:
 
@@ -818,9 +885,182 @@ output "changeme_preexisting_file_content" {
 }
 ```
 
+### Usando locals, foreach e null_resource
+
+```terraform
+# Documentation: https://www.terraform.io/docs/language/values/locals.html
+locals {
+  # Documentation: https://www.terraform.io/docs/language/expressions/types.html#maps-objects
+  map1 = {
+    item1 = {
+      name1 = "item1value1"
+      name2 = "item1value2"
+    }
+    item2 = {
+      name1 = "item2value1"
+      name2 = "item2value2"
+    }
+  }
+}
+
+# Documentation: https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource
+resource "null_resource" "changeme_null_resource_foreach" {
+  # Documentation: https://www.terraform.io/docs/language/meta-arguments/for_each.html
+  for_each = local.map1
+  # Documentation: https://www.terraform.io/docs/language/resources/provisioners/local-exec.html
+  provisioner "local-exec" {
+    command = "echo ${each.key} ${each.value.name1} ${each.value.name2}"
+  }
+}
+```
+
 Aplicar as alterações:
 
-```
+```shell
 terraform apply -auto-approve
 ```
+
+### Criando pipeline para aplicar o Terraform
+
+Adicionar variáveis de ambiente usadas para jobs do Terraform
+```yaml
+variables:
+  # Diretório com as configurações utilizadas pelo Terraform para realizar o
+  # provisionamento e gerenciamento da infraestrutura necessária para execução
+  # da aplicação em um provedor de nuvem.
+  TF_ROOT: terraform
+
+  # Nome do state do Terraform
+  TF_STATE_NAME: loja-virtual-prod
+
+```
+
+Adicionar estágios específicos para a infraestrutura:
+
+```yaml
+stages:
+  - init-cloud-infrastructure
+  - plan-cloud-infrastructure
+  - apply-cloud-infrastructure
+```
+
+Adicionar jobs do Terraform:
+
+```yaml
+#### Jobs referentes ao Terraform
+# (https://gitlab.com/gitlab-org/gitlab/blob/master/lib/gitlab/ci/templates/Terraform.gitlab-ci.yml)
+
+# Job responsável por inicializar o plano do Terraform
+init-cloud-infrastructure:
+  stage: init-cloud-infrastructure
+  image:
+    name: "$CI_TEMPLATE_REGISTRY_HOST/gitlab-org/terraform-images/releases/1.4:v1.0.0"
+  script:
+    - gitlab-terraform init
+
+# Job responsável por validar o plano do Terraform
+validate-cloud-infrastructure:
+  image:
+    name: "$CI_TEMPLATE_REGISTRY_HOST/gitlab-org/terraform-images/releases/1.4:v1.0.0"
+  stage: init-cloud-infrastructure
+
+  extends: .terraform:validate
+  needs: []
+
+# Job responsável por construir o plano do Terraform
+plan-cloud-infrastructure:
+  image:
+    name: "$CI_TEMPLATE_REGISTRY_HOST/gitlab-org/terraform-images/releases/1.4:v1.0.0"
+  extends: .terraform:build
+  environment:
+    name: $TF_STATE_NAME
+    action: prepare
+  stage: plan-cloud-infrastructure
+
+# Job responsável por aplicar o plano do Terraform no provedor de nuvem (OCI)
+apply-cloud-infrastructure:
+  image:
+    name: "$CI_TEMPLATE_REGISTRY_HOST/gitlab-org/terraform-images/releases/1.4:v1.0.0"
+  extends: .terraform:deploy
+  dependencies:
+    - plan-cloud-infrastructure
+  environment:
+    name: $TF_STATE_NAME
+    action: start
+  before_script:
+    - mkdir -p /.oci/
+    - chmod 700 /.oci/
+    - echo "$PRIVATE_API_KEY" | tr -d '\r' >> /.oci/oci_api_key.pem
+  stage: apply-cloud-infrastructure
+```
+
+
+## OCI
+
+### Realizando a inscrição
+
+
+Realizar a inscrição:
+
+https://signup.cloud.oracle.com/
+
+Confirmar e-mail:
+
+![Confirmação do e-mail](arquivos/imagens/oci/email_confirmacao.png)
+
+Definir senha:
+
+![Definir senha](arquivos/imagens/oci/definicao_senha.png)
+
+Informar endereço:
+
+![Informar endereço](arquivos/imagens/oci/informacoes_endereco.png)
+
+Adicionar método de pagamento:
+
+![Adicionar método de pagamento](arquivos/imagens/oci/adicionar_metodo_pagamento.png)
+
+Selecionar cartão de crédito:
+
+![Selecionar cartão de crédito](arquivos/imagens/oci/selecionar_cartao_credito.png)
+
+Preencher informações de pagamento:
+
+![Preencher informações de pagamento](arquivos/imagens/oci/preencher_informacoes_pagamento.png)
+
+Informações adicionadas com sucesso:
+
+![Informações adicionadas com sucesso](arquivos/imagens/oci/informacoes_adicionadas_com_sucesso.png)
+
+Verificação de pagamento:
+
+![Verificação de pagamento](arquivos/imagens/oci/verificacao_de_pagamento.png)
+
+Aceitar contrato:
+
+![Aceitar contrato](arquivos/imagens/oci/aceitar_contrato.png)
+
+Selecionar compartments:
+
+![Selecionar compartments](arquivos/imagens/oci/selecionar_compartments.png)
+
+Criar compartment:
+
+![Criar compartment](arquivos/imagens/oci/criar_compartment.png)
+
+Preencher informações do compartment:
+
+![Preencher informações do compartment](arquivos/imagens/oci/preencher_informacoes_compartment.png)
+
+
+Compartment criado:
+
+![Compartment criado](arquivos/imagens/oci/compartment_criado.png)
+
+
+### Arquitetura de referência
+
+Arquitetura de referência:
+
+https://docs.oracle.com/en/solutions/deploy-cloud-native-apps/index.html#GUID-6AF8F67C-E1E6-4211-8156-DA2001614E2D
 
