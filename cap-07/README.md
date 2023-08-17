@@ -34,6 +34,7 @@
       3. [Gerando uma saída (output)](#gerando-uma-saída-output)
       4. [Usando locals, foreach e null\_resource](#usando-locals-foreach-e-null_resource)
       5. [Criando pipeline para aplicar o Terraform](#criando-pipeline-para-aplicar-o-terraform)
+      6. [Adicionando provedores (providers)](#adicionando-provedores-providers)
    8. [OCI](#oci)
       1. [Realizando a inscrição](#realizando-a-inscrição)
       2. [Arquitetura de referência](#arquitetura-de-referência)
@@ -46,6 +47,62 @@
 Baixar executável:
 ```
 curl -sSLf https://get.k0s.sh | sudo sh
+```
+
+Executar o comando `ifconfig`:
+
+```
+ifconfig
+```
+
+Que terá uma saída semelhante a essa:
+
+```
+docker0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1460
+        inet 172.26.0.1  netmask 255.255.128.0  broadcast 172.26.127.255
+        inet6 fe80::42:66ff:fe3d:69e2  prefixlen 64  scopeid 0x20<link>
+        ether 02:42:66:3d:69:e2  txqueuelen 0  (Ethernet)
+        RX packets 30055  bytes 91491249 (91.4 MB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 49425  bytes 258356145 (258.3 MB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+```
+
+Encontre a rede docker0 e anote o endereço de IP da segunda linha, no exemplo anterior o endereço desejado é `172.26.0.1`.
+
+Crie o diretório `/etc/k0s` com o comando a seguir:
+
+```
+sudo mkdir -p /etc/k0s
+```
+
+Gere o arquivo de configuração do k0s com o seguinte comando:
+```
+sudo k0s config create > k0s.yaml
+```
+
+Altere o arquivo k0s.yaml
+
+Mova o arquivo k0s.yaml para o diretório criado comentando as seguintes linhas originais (o endereço de IP será diferente no seu arquivo) e colocando o novo endereço (coloque o valor obtido com o comando `ifconfig`), como no exemplo a seguir:
+
+```
+spec:
+  api:
+    #address: 192.168.1.7
+    address: 172.26.0.1
+...
+
+  storage:
+    etcd:
+      externalCluster: null
+      #peerAddress: 192.168.1.7
+      peerAddress: 172.26.0.1
+
+```
+
+```
+sudo mv ./k0s.yaml /etc/k0s/
 ```
 
 Criar cluster com um único nó:
@@ -793,7 +850,6 @@ profiles:
 
 ### Configurando uma pipeline para construção da imagem no GitLab
 
-
 Configurar a pipeline para construção da imagem:
 
 ```yaml
@@ -994,6 +1050,45 @@ apply-cloud-infrastructure:
   stage: apply-cloud-infrastructure
 ```
 
+### Adicionando provedores (providers)
+
+Alterar arquivo main.tf:
+
+```
+terraform {
+  required_version = ">= 1.5.0"
+
+  backend "http" {}
+  required_providers {
+    gitlab = {
+      source = "gitlabhq/gitlab"
+      version = "16.2.0"
+    }
+    oci = {
+      source = "oracle/oci"
+    }
+  }
+}
+```
+
+Criar arquivo provider.tf na raíz do projeto:
+
+```
+provider "gitlab" {
+  token = var.gitlab_access_token
+}
+
+provider "oci" {
+  tenancy_ocid     = var.tenancy
+  user_ocid        = var.user
+  fingerprint      = var.fingerprint
+  private_key_path = var.private_key_path
+  region           = var.region
+}
+
+```
+
+Rodar comando terraform
 
 ## OCI
 
