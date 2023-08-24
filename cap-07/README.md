@@ -986,8 +986,9 @@ variables:
   # da aplicação em um provedor de nuvem.
   TF_ROOT: terraform
 
-  # Nome do state do Terraform
+  # If not using GitLab's HTTP backend, remove this line and specify TF_HTTP_* variables
   TF_STATE_NAME: loja-virtual-prod
+  TF_CACHE_KEY: default
 
 ```
 
@@ -1071,25 +1072,47 @@ terraform {
 }
 ```
 
-Criar arquivo provider.tf na raíz do projeto:
+Configure os no arquivo main.tf no diretório `terraform`:
 
-```
+```terraform
 provider "gitlab" {
-  token = var.gitlab_access_token
+  token = var.gitlab_token
 }
 
-provider "oci" {
-  tenancy_ocid     = var.tenancy
-  user_ocid        = var.user
-  fingerprint      = var.fingerprint
-  private_key_path = var.private_key_path
-  region           = var.region
-}
+provider "oci" {}
 
 ```
 
-Rodar comando terraform
+Temos que criar um *token* de acesso no GitLab. Clique na sua foto e selecione `Preferences`:
 
+![Selecionar Preferences](arquivos/imagens/gitlab/selecionar_preferences.png)
+
+Depois clique no menu `Access Tokens`:
+
+![Selecionar Preferences](arquivos/imagens/gitlab/clicar_menu_access_tokens.png)
+
+
+Adicione um novo `Personal Access Token`` clicando no botão `Add new token`:
+
+
+![Clicar botão Add new token](arquivos/imagens/gitlab/clicar_botao_add_new_token.png)
+
+Definir nome do *token* e escopo de `api`:
+
+![Clicar botão Add new token](arquivos/imagens/gitlab/definir_nome_e_escopo_api.png)
+
+
+Criar *access token* clicando no botão `Create personal access token`:
+
+![Criar access token clicando no botão `Create personal access token`](arquivos/imagens/gitlab/clicar_botao_create_personal_access_token.png)
+
+Copiar *access token* clicando no botão apropriado:
+
+![Copiar access token clicando no botão apropriado](arquivos/imagens/gitlab/copiar_access_token.png)
+
+Devemos criar uma variável de ambiente chamada `TF_VAR_gitlab_access_token` e colocar como valor o *token* que copiamos no passo anterior.
+
+Com isso, o Terraform conseguirá usar o GitLab como um backend para salvar o estado.
 ## OCI
 
 ### Realizando a inscrição
@@ -1152,6 +1175,99 @@ Compartment criado:
 
 ![Compartment criado](arquivos/imagens/oci/compartment_criado.png)
 
+
+É necessário agora criar um grupo no OCI. Para isso selecione `Identity & Security`:
+
+Depois clique em `Groups`:
+
+Clique em `Create Group`:
+
+Preencha as informações como a seguir e clique em `Create`:
+
+
+No menu esquerdo clique em `Policies`:
+
+Na lista de `Compartments`, selecione o `Compartment` que apresenta o texto `(root)`
+
+Clique no botão `Create Policy`
+
+Preencha as informações como a seguir (ajuste para o seu próprio `Compartment`):
+
+
+Em `Policy Builder`, selecione `Show manual editor` e cole as seguintes políticas:
+
+```
+Allow group loja-virtual-administrator to manage virtual-network-family in tenancy
+Allow group loja-virtual-administrator to manage cluster-family in tenancy
+Allow group loja-virtual-administrator to manage instance-family in tenancy
+Allow group loja-virtual-administrator to use subnets in tenancy
+Allow group loja-virtual-administrator to manage virtual-network-family in tenancy
+Allow group loja-virtual-administrator to inspect compartments in tenancy
+Allow group loja-virtual-administrator to use vnics in tenancy
+Allow group loja-virtual-administrator to use network-security-groups  in tenancy
+Allow group loja-virtual-administrator to use private-ips  in tenancy
+Allow group loja-virtual-administrator to manage public-ips  in tenancy
+```
+
+Clique em `Create`:
+
+
+No menu, clique em `Users`:
+
+Clique em `Create User`:
+
+
+Preencha como a seguir e clique em `Create`:
+
+Clique novamente em `Group`, selecione o grupo `loja-virtual-administrator`, e clique em `Add User to Group`:
+
+Selecione o usuário lojavirtual e adicione ao grupo clicando em `Add`:
+
+
+Clique no usuário e depois clique em `API Keys`:
+
+Na sequencia clique em `Add Api Key`:
+
+Selecione `Generate API Key Pair` e depois faça o download da chave pública e privada, clicando respectivamente em `Download Public Key` e `Download Private Key`. Depois clique em `Add`:
+
+Na tela que vai aparecer, copie o arquivo de configuração clicando em `Copy`:
+
+
+Depois clique em close.
+
+Salve o conteúdo copiado no arquivo `~/.oci/config`.
+
+Mova o arquivo da chave privada para o diretorio chaves, dentro do diretório terraform do projeto loja-virtual-devops, e renomeie para `privada.pem`.
+
+Altere o arquivo `~/.oci/config` corrigindo o caminho do key_file. No meu exemplo o arquivo ficará assim:
+
+```
+key_file=/home/bruno/git/loja-virtual-devops/terraform/chaves/privada.pem
+```
+
+Crie o arquivo `initialize_terraform_variables.sh` dentro do diretório `terraform` do seguinte modo:
+
+```shell
+export TF_VAR_user_ocid="";
+export TF_VAR_fingerprint="";
+export TF_VAR_tenancy_ocid="";
+export TF_VAR_compartment_ocid="";
+export TF_VAR_region="sa-saopaulo-1";
+export TF_VAR_private_key_path="chaves/privada.pem";
+```
+
+
+Preencha as informações de acordo com o arquivo `~/.oci/config`. O user_ocid pode ser obtido clicando em `Users`, e posteriormente no botão com 3 pontos ao lado do nome do usuário criado:
+
+Na sequencia clique em `Copy OCID`:
+
+Já o component_ocid pode ser obtido clicando em `Compartments`, e passando o mouse sobre o OCID do `compartment` `lojavirtual` e posteriormente clicando em `Copy`.
+
+No GitLab, teremos que criar as mesmas variáveis, e adicionar a variável `PRIVATE_API_KEY`, com o valor da nossa chave privada. Além disso, vamos trocar o valor da variável `TF_VAR_private_key_path` para o seguinte:
+
+```
+/.oci/oci_api_key.pem
+```
 
 ### Arquitetura de referência
 
