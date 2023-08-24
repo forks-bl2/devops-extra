@@ -1313,6 +1313,41 @@ No GitLab, teremos que criar as mesmas variáveis, e adicionar a variável `PRIV
 
 Desse modo, nossa chave será copiada pela pipeline nessa localização e será utilizada pelo GitLab
 
+Ao rodar a pipeline, o cluster será criado:
+
+![Clicar em groups](arquivos/imagens/oci/cluster_criado.png)
+
+Clique no nome do cluster e depois em `Access Cluster`:
+
+
+![Clicar em groups](arquivos/imagens/oci/acessar_cluster.png)
+
+Clique em `Local Access`:
+
+![Clicar em groups](arquivos/imagens/oci/clique_em_local_access.png)
+
+
+Copie o comando do oci para criar o arquivo de configuração de acessso ao cluster:
+
+![Clicar em groups](arquivos/imagens/oci/clique_em_acesso_publico.png)
+
+
+Altere o parâmetro --file para `$HOME/.kube/oci-config `:
+
+```shell
+oci ce cluster create-kubeconfig --cluster-id ocid1.cluster.oc1.sa-saopaulo-1.aaaaaaaa6quadee7frqcriizlehd3rvi6uzblab7n5atjd5xpc5nk53yissq --file $HOME/.kube/oci-config --region sa-saopaulo-1 --token-version 2.0.0  --kube-endpoint PUBLIC_ENDPOINT
+```
+
+Instale o cliente OCI com o comando a seguir:
+
+```shell
+bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)"
+```
+
+Execute o comando alterado. Será criado um arquivo do estilo do arquivo `$HOME/.kube/config`.
+
+Use esse arquivo para para acessar o cluster pelo Lens.
+
 ### Arquitetura de referência
 
 Arquitetura de referência:
