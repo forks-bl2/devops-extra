@@ -1178,23 +1178,40 @@ Compartment criado:
 
 É necessário agora criar um grupo no OCI. Para isso selecione `Identity & Security`:
 
+![Clicar em identity & security](arquivos/imagens/oci/clicar_identity_security.png)
+
 Depois clique em `Groups`:
+![Clicar em groups](arquivos/imagens/oci/clicar_em_groups.png)
+
 
 Clique em `Create Group`:
+![Clicar em create group](arquivos/imagens/oci/clicar_em_create_group.png)
+
 
 Preencha as informações como a seguir e clique em `Create`:
-
+![Clicar em groups](arquivos/imagens/oci/clicar_em_create_do_group.png)
 
 No menu esquerdo clique em `Policies`:
+![Clicar em groups](arquivos/imagens/oci/clicar_em_policies.png)
+
 
 Na lista de `Compartments`, selecione o `Compartment` que apresenta o texto `(root)`
+![Clicar em groups](arquivos/imagens/oci/selecionar_compartment_root.png)
 
-Clique no botão `Create Policy`
+Clique no botão `Create Policy`:
+![Clicar em groups](arquivos/imagens/oci/clicar_em_create_policy.png)
+
 
 Preencha as informações como a seguir (ajuste para o seu próprio `Compartment`):
+![Clicar em groups](arquivos/imagens/oci/detalhes_politica.png)
 
 
-Em `Policy Builder`, selecione `Show manual editor` e cole as seguintes políticas:
+
+Em `Policy Builder`, selecione `Show manual editor`:
+
+![Clicar em groups](arquivos/imagens/oci/policy_builder.png)
+
+Cole as seguintes políticas:
 
 ```
 Allow group loja-virtual-administrator to manage virtual-network-family in tenancy
@@ -1211,27 +1228,44 @@ Allow group loja-virtual-administrator to manage public-ips  in tenancy
 
 Clique em `Create`:
 
+![Clicar em groups](arquivos/imagens/oci/clicar_create_policy_para_criar_politica.png)
 
 No menu, clique em `Users`:
 
-Clique em `Create User`:
+![Clicar em groups](arquivos/imagens/oci/clicar_em_users.png)
 
+
+Clique em `Create User`:
+![Clicar em groups](arquivos/imagens/oci/botao_create_user.png)
 
 Preencha como a seguir e clique em `Create`:
+![Clicar em groups](arquivos/imagens/oci/criar_usuario.png)
 
 Clique novamente em `Group`, selecione o grupo `loja-virtual-administrator`, e clique em `Add User to Group`:
 
-Selecione o usuário lojavirtual e adicione ao grupo clicando em `Add`:
+![Clicar em groups](arquivos/imagens/oci/add_user_to_group.png)
 
 
-Clique no usuário e depois clique em `API Keys`:
+Selecione o usuário `lojavirtual` e adicione ao grupo clicando em `Add`:
+
+![Clicar em groups](arquivos/imagens/oci/add_to_group.png)
+
+Clique no usuário e depois clique em `API Keys`.
+
+![Clicar em groups](arquivos/imagens/oci/api_keys.png)
 
 Na sequencia clique em `Add Api Key`:
 
+![Clicar em groups](arquivos/imagens/oci/add_api_key.png)
+
+
 Selecione `Generate API Key Pair` e depois faça o download da chave pública e privada, clicando respectivamente em `Download Public Key` e `Download Private Key`. Depois clique em `Add`:
+
+![Clicar em groups](arquivos/imagens/oci/add_key.png)
 
 Na tela que vai aparecer, copie o arquivo de configuração clicando em `Copy`:
 
+![Clicar em groups](arquivos/imagens/oci/clicar_em_copy_key.png)
 
 Depois clique em close.
 
@@ -1259,15 +1293,25 @@ export TF_VAR_private_key_path="chaves/privada.pem";
 
 Preencha as informações de acordo com o arquivo `~/.oci/config`. O user_ocid pode ser obtido clicando em `Users`, e posteriormente no botão com 3 pontos ao lado do nome do usuário criado:
 
+![Clicar em groups](arquivos/imagens/oci/clicar_botao_3_pontos_user.png)
+
+
 Na sequencia clique em `Copy OCID`:
 
-Já o component_ocid pode ser obtido clicando em `Compartments`, e passando o mouse sobre o OCID do `compartment` `lojavirtual` e posteriormente clicando em `Copy`.
+![Clicar em groups](arquivos/imagens/oci/copy_ocid.png)
+
+
+Já o `component_ocid` pode ser obtido clicando em `Compartments`, e passando o mouse sobre o OCID do `compartment` `lojavirtual` e posteriormente clicando em `Copy`.
+
+![Clicar em groups](arquivos/imagens/oci/copy_compartment_ocid.png)
 
 No GitLab, teremos que criar as mesmas variáveis, e adicionar a variável `PRIVATE_API_KEY`, com o valor da nossa chave privada. Além disso, vamos trocar o valor da variável `TF_VAR_private_key_path` para o seguinte:
 
 ```
 /.oci/oci_api_key.pem
 ```
+
+Desse modo, nossa chave será copiada pela pipeline nessa localização e será utilizada pelo GitLab
 
 ### Arquitetura de referência
 
