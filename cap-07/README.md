@@ -37,7 +37,11 @@
       6. [Adicionando provedores (providers)](#adicionando-provedores-providers)
    8. [OCI](#oci)
       1. [Realizando a inscrição](#realizando-a-inscrição)
-      2. [Arquitetura de referência](#arquitetura-de-referência)
+      2. [Configurar o cluster Kubernetes no GitLab](#configurar-o-cluster-kubernetes-no-gitlab)
+      3. [Alterar pipeline para realizar a implantação](#alterar-pipeline-para-realizar-a-implantação)
+      4. [Alteração do Skaffold](#alteração-do-skaffold)
+      5. [Criação do arquivo prod-values.yaml](#criação-do-arquivo-prod-valuesyaml)
+      6. [Arquitetura de referência](#arquitetura-de-referência)
 
 
 ## Configuração do Ambiente
@@ -1347,6 +1351,155 @@ bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scrip
 Execute o comando alterado. Será criado um arquivo do estilo do arquivo `$HOME/.kube/config`.
 
 Use esse arquivo para para acessar o cluster pelo Lens.
+
+### Configurar o cluster Kubernetes no GitLab
+
+Na página do projeto, é necessário clicar no menu `Operate`, e posteriormente em `Kubernetes clusters`:
+
+![Clicar em Kubernete Clusters](arquivos/imagens/gitlab/clicar_kubernetes_clusters.png)
+
+Na página que será aberta, deve-se clicar em `Connect a cluster`:
+
+![Clicar em Connect cluster](arquivos/imagens/gitlab/clicar_em_connect_cluster.png)
+
+Será aberto um `pop-up`. Clique em `Select an agent or enter a name to create new`. Digite o nome `develop` e clique em `Create agent: develop`:
+
+![Clicar em Connect cluster](arquivos/imagens/gitlab/criar_agent.png)
+
+Depois clique em `Register`:
+
+![Clicar em Register agent](arquivos/imagens/gitlab/register_agent.png)
+
+Se for apresentada a mensagem de erro a seguir, clique em `Cancel`:
+
+![Mensagem de erro](arquivos/imagens/gitlab/mensagem_erro.png)
+
+Aperte F5 para recarregar a página. O novo agent aparecerá na lista com o status `Never connected`:
+
+![Listagem de agents](arquivos/imagens/gitlab/lista_agents.png)
+
+Clique no nome do `agent` para abrir seus detalhes:
+
+![Detalhes do agent](arquivos/imagens/gitlab/detalhes_agent.png)
+
+Nessa tela clique em `Access tokens` para ter acesso aos `tokens` de acesso do `agent`, que serão utilizados posteriormente.
+
+![Clicar create token](arquivos/imagens/gitlab/clicar_create_token.png)
+
+Preencha as informações como a seguir e clique em `Create token`:
+
+![Preencha as informações e clique em create token](arquivos/imagens/gitlab/preencha_informacoes_create_token.png)
+
+Será exibida uma tela com as informações necessárias para conectar o agent do cluster com o GitLab:
+
+![Informações de conexão](arquivos/imagens/gitlab/informacoes_do_agente_para_conexao.png)
+
+Copie os comandos referentes à instalação com o Helm, e altere-os acrescentando o parâmetro `kubeconfig`, para utilizar o arquivo oci-config, que possui os dados de conexão ao cluster criado:
+
+
+```shell
+helm --kubeconfig=$HOME/.kube/oci-config repo add gitlab https://charts.gitlab.io
+
+helm --kubeconfig=~/.kube/oci-config repo update
+
+helm --kubeconfig=$HOME/.kube/oci-config upgrade --install develop gitlab/gitlab-agent     --namespace gitlab-agent-develop     --create-namespace     --set image.tag=v16.3.0     --set config.token=<TOKEN>     --set config.kasAddress=wss://kas.gitlab.com
+```
+
+Troque `<TOKEN>` pelo token informado pelo GitLab.
+
+Ao executar esses comandos, o agent do GitLab será instalado no seu cluster, e permitirá ao GitLab realizar a implantação da aplicação no cluster. É possível ver os pods dos agentes no Lens, no namespace gitlab-agent-develop:
+
+![Agentes no Lens](arquivos/imagens/gitlab/agentes_no_lens.png)
+
+Após essa instalação, deverá mudar o status do agente no GitLab:
+
+![Agente conectado no GitLab](arquivos/imagens/gitlab/agente_conectado.png)
+
+### Alterar pipeline para realizar a implantação
+
+Vamos agora alterar a pipeline para permitir a implantação da aplicação. Primeiro, é necessário adicionar um artefato ao job `skaffold-build`:
+
+```yaml
+  # Mantém os artefatos armazenados por um dia
+  artifacts:
+    untracked: false
+    paths:
+      - tags.json
+    expire_in: 1 days
+```
+
+Esse artefato vai armazenar o arquivo tags.json, gerado pelo skaffold, com as tags das imagens. Esse arquivo será utilizado no job `skaffold-deploy`, que deverá ser adicionado à pipeline:
+
+```yaml
+# Job responsável por realizar o deploy da aplicação no cluster Kubernetes
+skaffold-deploy:
+  image: maven:3.6.3-openjdk-8-slim
+  stage: deploy
+  environment: production
+  before_script:
+    - apt-get update && apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+    - curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    - echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" |  tee /etc/apt/sources.list.d/docker.list > /dev/null
+    - apt-get update && apt-get install docker-ce docker-ce-cli containerd.io -y
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+    - curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+    - install skaffold /usr/local/bin/
+    - curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    - install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+  script:
+    - kubectl create secret docker-registry gitlab-registry --docker-server="$CI_REGISTRY" --docker-username="gitlab-ci-token" --docker-password="$CI_JOB_TOKEN" --docker-email="$GITLAB_USER_EMAIL" -o yaml --dry-run=client > chart/templates/gitlab-registry-secret.yaml
+    - skaffold deploy -p gitlab --kubeconfig=$KUBECONFIG --build-artifacts=tags.json --namespace=$KUBE_NAMESPACE
+```
+
+Nesse job, criamos um secret, com o comando `kubectl create secret`, para armazenar as credenciais de acesso ao registry do GitLab, para permitir que o Kubernetes baixe as imagens geradas pelo skaffold.
+
+Depois realizamos a implantação como ocomando skaffold deploy. Nesse comando informamos o parâmetro `build-artifacts` para que seja utilizado o arquivo `tags.json`.
+
+### Alteração do Skaffold
+
+Temos que alterar também o arquivo `skaffold.yaml`:
+
+```yaml
+      - op: replace
+        path: /deploy/kubeContext
+        value: forks-bl2/loja-virtual-devops:develop
+      - op: replace
+        path: /deploy/helm/releases/0/valuesFiles
+        value: [chart/values.yaml, chart/prod-values.yaml]
+      - op: replace
+        path: /deploy/helm/releases/0/setValueTemplates/image.repository
+        value: "{{.IMAGE_REPO_registry_gitlab_com_forks_bl2_loja_virtual_devops_loja_virtual}}"
+      - op: replace
+        path: /deploy/helm/releases/0/setValueTemplates/image.tag
+        value: "{{.IMAGE_TAG_registry_gitlab_com_forks_bl2_loja_virtual_devops_loja_virtual}}"
+```
+A primeira alteração é a alteração do contexto (kubeContext). Localmente usamos o contexto `k0s`, porém na pipeline, será definido pelo gitlab um contexto com o seguinte formato:
+
+```
+<CAMINHO_DO_PROJETO>:<NOME_AGENTE>
+```
+
+No exemplo, o caminho do nosso projeto é `forks-bl2/loja-virtual-devops` e o nome do agente é `develop`, sendo assim, deveremos ter o kubecontext:
+
+```
+forks-bl2/loja-virtual-devops:develop
+```
+
+A segunda mudança é para utilizarmos além do arquivo values, o arquivo `prod-values.yaml` para definir configurações específicas do ambiente de produção. Criaremos esse arquivo na sequencia.
+
+A terceira e a quarta mudanças se referem a adaptação dos nomes das imagens geradas para utilizar as imagens no registry do GitLab.
+
+### Criação do arquivo prod-values.yaml
+
+Para definir as configurações necessárias para o ambiente de produção, vamos criar o arquivo `chart/prod-values.yaml`:
+
+```yaml
+imagePullSecrets:
+  - name: gitlab-registry
+```
+
+Com essa alteração, estamos configurando o Kubernetes para utilizar o segredo criado na pipeline para permitir que sejam baixadas as imagens geradas por meio da definição do imagePullSecrets.
 
 ### Arquitetura de referência
 
